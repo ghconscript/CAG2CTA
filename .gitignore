@@ -1,0 +1,26 @@
+# --- Python 相关 ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# --- 你的项目特有 (核心) ---
+# 忽略所有生成的 .npy 数据文件（非常占空间）
+*.npy
+
+# 忽略生成的训练结果、模型权重和 Tensorboard 日志
+output_results/
+
+# 忽略数据集文件夹 (如果你把 datasets 放在了项目里)
+datasets/
+
+# --- IDE 相关 ---
+.vscode/
+.idea/
+
+# --- 系统相关 ---
+.DS_Store
+Thumbs.db
+/src/segmentation/run/

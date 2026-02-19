@@ -1,0 +1,1 @@
+from fr_unet_model import FR_UNet
