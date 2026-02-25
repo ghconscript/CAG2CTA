@@ -7,10 +7,12 @@ import numpy as np
 import tigre
 import tigre.algorithms as algs
 from scipy.ndimage import zoom
+#解决兼容问题，我的numpy是1.20以上 不能用np.int
+np.int = int
 
 
 def CCTA_split():
-    file_name = "./datasets/raw_nii/label.nii"
+    file_name = "../datasets/raw_nii/28.label.nii.gz"
     img_nifti = nib.load(file_name)
     voxels_space = img_nifti.header['pixdim'][1:4]
     img = img_nifti.get_fdata()
@@ -81,21 +83,21 @@ def CCTA_split():
         data[coords[0], coords[1], coords[2]] = 0
         np.save("./split_one/data", data.astype('int8'))
 
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection='3d')
-        # xyzs = np.where(data>0.5)
-        # ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
-        # plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        xyzs = np.where(data>0.5)
+        ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
+        plt.show()
 
         data = data * 0
         data[coords[0], coords[1], coords[2]] = 1
         np.save("./split_two/data", data.astype('int8'))
 
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection='3d')
-        # xyzs = np.where(data>0.5)
-        # ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
-        # plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        xyzs = np.where(data>0.5)
+        ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
+        plt.show()
 
     else:
         print('Failed to split for this data!')
@@ -148,13 +150,14 @@ def generate_deformed_projections_RCA():
         fig = plt.figure()
         ax = fig.add_subplot()
         ax.imshow(projections[0], cmap=plt.get_cmap('Greys'))
-        # plt.show()
+        #plt.show()
         plt.savefig('./CCTA_first_proj/' + str(i + 1) + '.png')
         plt.close()
 
         ## Reconstruct:
         imgSIRT = algs.sirt(projections, geo, angles, 1)
-        imgSIRT_one = imgSIRT > 0
+        #imgSIRT_one = imgSIRT > 0
+        imgSIRT_one = imgSIRT > (np.max(imgSIRT) * 0.01)
 
         # -8 to 8 mm translation; -10 to 10degrees
         #############################
@@ -174,11 +177,13 @@ def generate_deformed_projections_RCA():
         ## Project
         projections = tigre.Ax(phantom.copy(), geo, angles)  # array
         projections = projections > 0
+        #projections = projections > 1e-3
+        #projections = projections > (np.max(projections) * 0.05)
 
         fig = plt.figure()
         ax = fig.add_subplot()
         ax.imshow(projections[0], cmap=plt.get_cmap('Greys'))
-        # plt.show()
+        #plt.show()
         plt.savefig('./CCTA_second_proj/' + str(i + 1) + '.png')
         plt.close()
 
@@ -187,20 +192,21 @@ def generate_deformed_projections_RCA():
         angles = np.array([[angle_two_pri, angle_two_sec, 0]])
         angles = angles / 180 * np.pi
         imgSIRT = algs.sirt(projections, geo, angles, 1)
-        imgSIRT_two = imgSIRT > 0
+        imgSIRT_two = imgSIRT > (np.max(imgSIRT) * 0.01)
+        #imgSIRT_two = imgSIRT > 0
 
         recon = imgSIRT_one.astype(np.int8) + imgSIRT_two.astype(np.int8)
 
         np.save("./CCTA_BP/recon_" + str(i + 1), recon.astype(np.int8))
         print("save ill_posed " + str(i + 1))
 
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection='3d')
-        # xyzs = np.where(recon>0.5)
-        # ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
-        # plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        xyzs = np.where(recon>0.5)
+        ax.scatter(xyzs[0], xyzs[1], xyzs[2], marker='.')
+        plt.show()
 
 
 if __name__ == '__main__':
-    CCTA_split()
-    # generate_deformed_projections_RCA()
+    #CCTA_split()
+    generate_deformed_projections_RCA()

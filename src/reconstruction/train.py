@@ -31,6 +31,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # 创建一个专门存放结果的文件夹
 output_root = os.path.join(current_dir, 'output_results')
 os.makedirs(output_root, exist_ok=True)
+checkpoint_dir = os.path.join(output_root, 'checkpoints')
+os.makedirs(checkpoint_dir, exist_ok=True)
 run_folder = os.path.join(output_root, 'runs', '{date:%m_%d_%H_%M}'.format(date=datetime.datetime.now()))
 writer = SummaryWriter(run_folder)
 
@@ -38,7 +40,7 @@ writer = SummaryWriter(run_folder)
 def set_torch():
     torch.cuda.empty_cache()
     torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benmark = False
+    torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
 
@@ -296,14 +298,22 @@ def main():
             early_stop_count_val = 0
 
             # # Save a checkpoint of the best validation loss model so far
-            # # print("saving this best validation loss model so far!")
             best_model_state = copy.deepcopy(model.state_dict())
             best_D_model_state = copy.deepcopy(discriminator.state_dict())
             optimizer_state = copy.deepcopy(optimizer.state_dict())
             D_optimizer_state = copy.deepcopy(D_optimizer.state_dict())
+            torch.save({
+                'epoch': epoch + 1,
+                'model_state_dict': best_model_state,
+                'optimizer_state_dict': optimizer_state,
+                'D_optimizer_state_dict': D_optimizer_state,
+                'best_loss': best_validation_loss,
+            }, os.path.join(output_root, 'checkpoints', 'best_checkpoint.tar'))
+            print("saving this best validation loss model so far!")
+
         else:
             early_stop_count_val += 1
-            # print('no improvement on validation at this epoch, continue training...')
+            print('no improvement on validation at this epoch, continue training...')
 
         if early_stop_count_val >= 20:
             print('early stopping validation!!!')
@@ -321,7 +331,6 @@ def main():
 
 
 if __name__ == '__main__':
-    # set_torch()
-    set_random_seed(1, False)
-
+    #set_torch()
+    #set_random_seed(1, False)
     main()
