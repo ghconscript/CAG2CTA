@@ -9,7 +9,7 @@ venv/
 # --- 你的项目特有 (核心) ---
 # 忽略所有生成的 .npy 数据文件（非常占空间）
 *.npy
-
+*.png
 # 忽略生成的训练结果、模型权重和 Tensorboard 日志
 output_results/
 
