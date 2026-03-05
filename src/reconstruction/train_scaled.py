@@ -2,6 +2,7 @@ import copy
 import datetime
 import gc
 import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import random
 import numpy as np
 import torch
@@ -25,6 +26,7 @@ MAX_EPOCHS = 200
 
 #BATCH_SIZE = 3 我的4060只有8Gb的显存TAT，batchsize设置成3运行的时候爆掉了
 BATCH_SIZE = 1
+ACCUM_STEPS = 4
 # Summary writer
 # 自动定位到当前脚本所在目录
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -145,7 +147,7 @@ def main():
                              lr=1e-4, betas=(0.5, 0.9))
 
     #
-    best_validation_loss = np.Inf
+    best_validation_loss = np.inf
 
     best_model_state = None
     best_D_model_state = None
@@ -164,7 +166,7 @@ def main():
     num_critics = 2
 
     # ⚠️ 把这里的 'Epoch_1.tar' 替换为你实际保存的文件名
-    resume_path = os.path.join(checkpoint_dir, 'Epoch_3.tar')
+    resume_path = os.path.join(checkpoint_dir, 'Epoch_23.tar')
 
     if os.path.exists(resume_path):
         print(f"🔄 正在从存档恢复训练: {resume_path}")
@@ -176,8 +178,7 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
         D_optimizer.load_state_dict(checkpoint['D_optimizer'])
 
-        # ⚠️ 如果你加载的是 Epoch 1，那接下来就从第 2 轮 (也就是索引 1) 开始跑
-        # 请根据你加载的文件名手动修改这个数字
+         #⚠️ 如果你加载的是 Epoch 1，那接下来就从第 2 轮 (也就是索引 1) 开始跑请根据你加载的文件名手动修改这个数字
         start_epoch = 3
         print(f"✅ 恢复成功！将从 Epoch {start_epoch + 1} 继续训练。")
     # ==========================================
@@ -187,6 +188,13 @@ def main():
 
         model.train()
         discriminator.train()
+
+        # --- 新增的初始化代码 ---
+        D_optimizer.zero_grad()
+        optimizer.zero_grad()
+        g_accum_count = 0
+        # ----------------------
+        
         l1_losses = []
         D_losses = []
         D_losses_cur = []
@@ -211,7 +219,7 @@ def main():
             gc.collect()
             torch.cuda.empty_cache()
 
-            D_optimizer.zero_grad()
+            #D_optimizer.zero_grad()
             outputs = model(inputs)
 
             # Classify the generated and real batch images
@@ -228,9 +236,16 @@ def main():
             Wasserstein_D = DX_score - DG_score
 
             # Update parameters
-            D_loss.backward()
-            D_optimizer.step()
+            D_loss_scaled = D_loss / ACCUM_STEPS
+            D_loss_scaled.backward()
+            if (i + 1) % ACCUM_STEPS == 0 or (i + 1) == len(trainloader):
+                D_optimizer.step()
+                D_optimizer.zero_grad()
+                
             D_losses.append(D_loss.detach().item())
+            #D_loss.backward()
+            #D_optimizer.step()
+            #D_losses.append(D_loss.detach().item())
             D_losses_cur.append(D_loss.detach().item())
             Wasserstein_Ds.append(Wasserstein_D.detach().item())
             Wasserstein_Ds_cur.append(Wasserstein_D.detach().item())
@@ -246,7 +261,7 @@ def main():
                 gc.collect()
                 torch.cuda.empty_cache()
 
-                optimizer.zero_grad()
+                #optimizer.zero_grad()
                 outputs = model(inputs)
 
                 DG_score = discriminator(torch.cat((inputs, outputs), 1)).mean()  # D(G(z))
@@ -261,9 +276,15 @@ def main():
                 combined_losses.append(combined_loss.detach().item())
 
                 # update parameters
-                combined_loss.backward()
-                optimizer.step()
-
+                #combined_loss.backward()
+                #optimizer.step()
+                combined_loss_scaled = combined_loss / ACCUM_STEPS
+                combined_loss_scaled.backward()
+                
+                g_accum_count += 1
+                if g_accum_count % ACCUM_STEPS == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
                 writer.add_scalar('Loss_iter/l1_3d', l1_loss.detach(), epoch * num_train_divide + i + 1)
                 writer.add_scalar('Loss_iter/G_loss', G_loss.detach(), epoch * num_train_divide + i + 1)
                 writer.add_scalar('Loss_iter/D_loss', np.mean(D_losses_cur), epoch * num_train_divide + i + 1)
@@ -299,7 +320,7 @@ def main():
 
         writer.add_scalars('Loss/G_D_loss', {'G_loss': np.mean(G_losses), 'D_loss': np.mean(D_losses)}, epoch + 1)
 
-        if (epoch + 1) % 1 == 0:
+        '''if (epoch + 1) % 1 == 0:
             model.eval()
             torch.save(
                 {
@@ -309,7 +330,7 @@ def main():
                     "D_optimizer": D_optimizer.state_dict(),
                 },
                 os.path.join(output_root, 'checkpoints', 'Epoch_' + str(epoch + 1) + '.tar'),
-            )
+            )'''
 
         # early stopping if validation loss is increasing or staying the same after five epoches
         if validation_loss < best_validation_loss:
